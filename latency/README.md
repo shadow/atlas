@@ -13,7 +13,8 @@ Extract MaxMindDB and link to the database file
 After running `01-test-reachability.py` for the first time, this file will be
 created.  You probably don't want this to change while you're gathering data.
 So make sure all scripts that reference it are configured with a
-`--probe-list-age` that's functionally infinite.
+`--probe-list-age` that's functionally infinite. It would be smart to back this
+file up once it's generated.
 
 # `01-test-reachability.py`
 
@@ -70,3 +71,13 @@ A week? A runtime estimate is logged every 5 minutes. You can cut the time in
 half by splitting the work across two different RIPE Atlas users. Figure out a
 way to split all-probes.json in half and run the script twice with different
 API keys. And then combine results back together. Good luck.
+
+# `02-pick-best-by-city.py`
+
+Once `01-test-reachability.py` is done, run this to parse the list of all
+probes, `cache/all-probes.json`, into a list of just the selected probes at
+`cache/selected-probes.json`. This also generates the file
+`cache/all-pairs.txt` which is the list of measurements needed to do the `n^2`
+pairwise pings between the `n` selected probes.
+
+Backup the output files of this script.
