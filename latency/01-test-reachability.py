@@ -122,21 +122,6 @@ def probably_can_create_measurement(args):
                 'that goes down.')
         probably_can_create_measurement.last_answer = False
         return False
-    #atlas_url = 'https://atlas.ripe.net/api/v2/measurements/my/?status__in=1,2'
-    #req = Request(atlas_url)
-    #req.add_header('Authorization', 'Key {}'.format(args.api))
-    #try: resp = urlopen(req)
-    #except HTTPError as e:
-    #    log.warn('Couldn\'t fetch measurement count information. Assuming '
-    #             '(probably incorrectly) that we can create more measurements')
-    #    probably_can_create_measurement.last_answer = True
-    #    return True
-    #j = json.loads(resp.read().decode('utf-8'))
-    #count = int(j['count'])
-    #if count > args.max_concurrent_measurements:
-    #    log.info('Too many concurrent measurements. Need to wait')
-    #    probably_can_create_measurement.last_answer = False
-    #    return False
     probably_can_create_measurement.last_answer = True
     return True
 probably_can_create_measurement.last_check = 0
