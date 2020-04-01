@@ -165,7 +165,7 @@ if __name__ == '__main__':
         '--mmdb', type=str, default='data/GeoLite2-City.mmdb', help='Path to '
         'MaxMind City DB')
     parser.add_argument(
-        '--measurements-file', type=str, default='cache/reachability-measurements.txt',
+        '--measurements-file', type=str, default='cache/reachability-measurements.json',
         help='File to store measurement IDs as they are created')
     parser.add_argument(
         '--src-probe', type=int, default=33415, help='ID of source RIPE Atlas '
