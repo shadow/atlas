@@ -29,7 +29,7 @@ class AtlasClient:
         target_id = probe['id']
         target_ip = probe['address_v4']
         log.notice('Creating measurement to probe', target_id, target_ip)
-        desc = '[test] reachability {} to {}'.format(args.src_probe, target_id)
+        desc = '{} {} to {}'.format(args.test_name_prefix, args.src_probe, target_id)
         ping = Ping(af=4, target=target_ip, description=desc)
         source = AtlasSource(type='probes', value='{}'.format(args.src_probe),
                              requested=1)

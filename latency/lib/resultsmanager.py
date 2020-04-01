@@ -30,11 +30,15 @@ class ResultsManager:
                 finally: ResultsManager.unlock_fd(fd)
 
     def _fetch_more_from_ripe(self):
+        args = self._args
         log = self._log
         measurements = []
         last_msm_id = -1
         log.debug('Fetching measurements after id', last_msm_id)
-        url = 'https://atlas.ripe.net/api/v2/measurements/?page_size=500&description__startswith=%5Btest%5D%20reachability&mine=true'
+        url = 'https://atlas.ripe.net/api/v2/measurements/?page_size=500&'+\
+            'description__startswith='+\
+            urllib.parse.quote(args.test_name_prefix)+\
+            '&mine=true'
         msm_resp = urllib.request.urlopen(url+'&id__gt='+str(last_msm_id))
         j = json.loads(msm_resp.read().decode('utf-8'))
         while len(j['results']):

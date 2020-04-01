@@ -186,6 +186,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--results-per-day', type=int, default=98000, help='Max num of results '
         'RIPE will allow you to get in one day. Can be near the real limit.')
+    parser.add_argument(
+        '--test-name-prefix', type=str, default='[test] reachability',
+        help='Prefix the name of created RIPE Atlas tests with this string')
     args = parser.parse_args()
     if not os.path.isfile(args.mmdb):
         fail_hard(args.mmdb, 'must exist as a file')
