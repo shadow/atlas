@@ -72,7 +72,7 @@ class AtlasClient:
             return None
         if not rm.have_measurement_for_probe(probe['id']):
             log('No measurement for probe', probe['id'], 'yet')
-            #msm_id = self._create_measurement(probe)
+            msm_id = self._create_measurement(probe)
             had_to_create_msm = True
         if not rm.have_measurement_for_probe(probe['id']):
             log.warn('Unable to make measurement to probe', probe['id'])
