@@ -4,6 +4,7 @@ from lib.pastlylogger import PastlyLogger
 from lib.probelist import ProbeList
 from lib.resultsmanager import ResultsManager
 from lib.atlasclient import AtlasClient
+from lib.periodicevent import PeriodicEvent
 import os
 import maxminddb
 import time
@@ -134,7 +135,6 @@ def main(args):
     mmdb = maxminddb.open_database(args.mmdb)
     probe_list = ProbeList(args, log, mmdb)
     results_manager = ResultsManager(args, log)
-    return
     atlas_client = AtlasClient(args, log, results_manager)
     workers = [Worker(args, log, results_manager, kill_worker_threads,
                       'Worker-{}'.format(i)) for i in range(0, args.threads)]
