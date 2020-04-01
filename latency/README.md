@@ -16,13 +16,19 @@ So make sure all scripts that reference it are configured with a
 `--probe-list-age` that's functionally infinite. It would be smart to back this
 file up once it's generated.
 
-# `01-test-reachability.py`
+# API key
 
-The API key for this script needs the following permissions.
+The API key for these script needs the following permissions.
 
 - Get information about your credits
 - Schedule a new measurement
 - List your measurements
+
+Create an API key [here](https://atlas.ripe.net/keys/).
+
+# `01-test-reachability.py`
+
+This is the first primary latency measurements script.
 
 When stopping `01-test-reachability.py`, **only hit ctrl-c once**. The script
 will wait for existing measurements to finish, create the queued measurements,
@@ -76,8 +82,38 @@ API keys. And then combine results back together. Good luck.
 
 Once `01-test-reachability.py` is done, run this to parse the list of all
 probes, `cache/all-probes.json`, into a list of just the selected probes at
-`cache/selected-probes.json`. This also generates the file
+`data/selected-probes.json`. This also generates the file
 `cache/all-pairs.txt` which is the list of measurements needed to do the `n^2`
 pairwise pings between the `n` selected probes.
 
 Backup the output files of this script.
+
+# `03-all-pairs-ping.py`
+
+This is the other primary script for latency measurements. Expect this to take
+over a week to run.
+
+It's input is the plaintext line-based `cache/all-pairs.txt`. If you have
+access to multiple RIPE Atlas accounts, shuffle the lines in this file, split
+it into multiple pieces, and run one instance of this script for each input
+piece. Use different output files too, of course.
+
+It's output is the plaintext line-based `cache/all-pairs-measurements.txt`.
+It's very similar to the input file format, but with the measurement ID numbers
+on the lines as well.
+
+This script doesn't fetch measurement results itself, but it does wait for the
+measurements to be done before starting new ones.
+
+20 threads should be plenty to keep enough measurements going in parallel that
+you spend the maximum amount of credits every day.
+
+There are lots of sleeps in the main loop.
+
+- Sleep for 15 minutes if we cannot create any measurements right now. The
+  script bumps into the 24hr spending limit. We could be waiting for quite a
+  while.
+- Sleep for 60 seconds for every new measurement. This helps spread them out
+  over the day. There's not much of a point in spending all our daily credit
+  allowance in 1 hour. Slow down our hammering of API usage. Spread out our
+  spending so we're less bursty and can stay closer to the limit for longer.
