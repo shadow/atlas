@@ -161,8 +161,6 @@ def main(args):
         while not probably_can_create_measurement(args):
             time.sleep(15)
         progress += 1
-        if probe['id'] % 4 == 2 and args.only_even: continue
-        elif probe['id'] % 4 == 0 and args.only_odd: continue
         worker = get_next_worker_thread(workers)
         log.debug('Giving worker', worker.name, 'probe', probe['id'])
         worker.give({'probe': probe})
@@ -203,17 +201,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--results-per-day', type=int, default=98000, help='Max num of results '
         'RIPE will allow you to get in one day. Can be near the real limit.')
-    parser.add_argument('--only-even', action='store_true',
-                        help='Only measure probes with an even ID')
-    parser.add_argument('--only-odd', action='store_true',
-                        help='Only measure probes with an odd ID')
     args = parser.parse_args()
     if not os.path.isfile(args.mmdb):
         fail_hard(args.mmdb, 'must exist as a file')
     if len(args.api) != 36:
         fail_hard(args.api, 'doesn\'t look like an API key')
-    if args.only_even and args.only_odd:
-        fail_hard('Specify --only-even or --only-odd, not both')
     try:
         main(args)
     except KeyboardInterrupt: pass
