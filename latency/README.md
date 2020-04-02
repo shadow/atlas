@@ -72,6 +72,7 @@ according to MaxMind), and assuming 6 credits per ping measurement: **36,000
 credits**. 6000 is accurate as of April 2020, as is 2 credits per ICMP ping (3
 pings in a measurement, thus 6 credits for a measurement).
 
+
 ## Runtime
 A week? A runtime estimate is logged every 5 minutes. You can cut the time in
 half by splitting the work across two different RIPE Atlas users. Figure out a
@@ -117,3 +118,14 @@ There are lots of sleeps in the main loop.
   over the day. There's not much of a point in spending all our daily credit
   allowance in 1 hour. Slow down our hammering of API usage. Spread out our
   spending so we're less bursty and can stay closer to the limit for longer.
+
+# `04-fetch-all-pairs-results.py`
+
+Run this after `03-al-pairs-ping.py`. Periodically while 03 is running is fine
+too. This fetches the results from RIPE and stores them all in a file.
+
+The size of the output file `cache/all-pairs-results.json` will get quite
+large, thus the script only rewrites the file periodically (controlled with
+`--write-results-every`, default to every 5 fetched results). Yes it would be
+better if this wrote one result per line and simply appended to this file, but
+that's not how I wrote it 2 years ago, sorry.
