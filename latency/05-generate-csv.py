@@ -36,7 +36,17 @@ def _get_cc_for_ip(ip_str):
 
 
 @lru_cache(maxsize=4096)
-def _get_city_for_ip(ip_str):
+def _get_city_name_for_ip(ip_str):
+    name = None
+    data = mmdb.get(ip_str)
+    if data and 'city' in data and 'names' in data['city'] \
+            and 'en' in data['city']['names']:
+        name = data['city']['names']['en']
+    return name
+
+
+@lru_cache(maxsize=4096)
+def _get_city_code_for_ip(ip_str):
     cc = None
     data = mmdb.get(ip_str)
     if data and 'city' in data:
@@ -60,8 +70,9 @@ def main(args):
     counter = 0
     total_count = 0
     with open(args.output, 'wt') as fd:
-        fieldnames = ['id', 'src', 'src_city', 'src_country', 'dst',
-            'dst_city', 'dst_country', 'latency']
+        fieldnames = ['id', 'src', 'src_city', 'src_city_name', 'src_country',
+                      'dst', 'dst_city', 'dst_city_name', 'dst_country',
+                      'latency']
         writer = csv.DictWriter(fd, fieldnames=fieldnames)
         writer.writeheader()
         for msm_id in results:
@@ -74,10 +85,12 @@ def main(args):
                 writer.writerow({
                     'id': counter,
                     'src': src_ip,
-                    'src_city': _get_city_for_ip(src_ip),
+                    'src_city': _get_city_code_for_ip(src_ip),
+                    'src_city_name': _get_city_name_for_ip(src_ip),
                     'src_country': _get_cc_for_ip(src_ip),
                     'dst': dst_ip,
-                    'dst_city': _get_city_for_ip(dst_ip),
+                    'dst_city': _get_city_code_for_ip(dst_ip),
+                    'dst_city_name': _get_city_name_for_ip(dst_ip),
                     'dst_country': _get_cc_for_ip(dst_ip),
                     'latency': rtt/2
                 })
@@ -85,7 +98,7 @@ def main(args):
     log('Got {}/{} ({}%) good ping measurements written to'
         .format(counter, total_count, int(100*counter/total_count)), args.output)
     log('country', _get_cc_for_ip.cache_info())
-    log('city', _get_city_for_ip.cache_info())
+    log('city', _get_city_code_for_ip.cache_info())
 
 
 
