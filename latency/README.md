@@ -1,3 +1,7 @@
+Here you will find an ordered list of scripts for obtaining a global latency
+map as approximated by RIPE Atlas probes. This process will take weeks and cost
+10+ million RIPE Atlas credits.
+
 # Preparation
 
 Extract MaxMindDB and link to the database file
@@ -67,17 +71,22 @@ this ... measurement collection. The default value is what Matt used in his
 2018 measurements.
 
 ## Cost
-Assuming ~6000 online probes with an IPv4 address and a city (the latter is
-according to MaxMind), and assuming 6 credits per ping measurement: **36,000
-credits**. 6000 is accurate as of April 2020, as is 2 credits per ICMP ping (3
-pings in a measurement, thus 6 credits for a measurement).
 
+In the worst case it will cost 6x the number of existing RIPE Atlas probes.
+It will not be this high because not all probes have an IPv4 address.
+
+In April 2020 there was about 11,000 probes but only 8,800 had IPv4 addresses.
+Thus it would cost about 50,000 credits.
 
 ## Runtime
 A week? A runtime estimate is logged every 5 minutes. You can cut the time in
 half by splitting the work across two different RIPE Atlas users. Figure out a
 way to split all-probes.json in half and run the script twice with different
 API keys. And then combine results back together. Good luck.
+
+To parallize this I would recommend finding a way to get the input and output
+of this script to be line-based. Then this should be parallelizeable in the
+same manner as `03-all-pairs-ping.py`.
 
 # `02-pick-best-by-city.py`
 
@@ -141,3 +150,26 @@ that's not how I wrote it 2 years ago, sorry.
 
 This is the final script. Generates the CSV to be used for generating the
 network topology.
+
+# Finding answers for questions you might have
+
+## How many probes/cities did I/will I end up using?
+
+You can answer this as soon as `01-test-reachability.py` is finished by running
+`02-pick-best-by-city.py`. Here the answer is 1813.
+
+    $ ./02-pick-best-by-city.py \
+        --out-selected-probes /dev/null \
+        --out-all-pairs-list /dev/null
+    [...]
+    [notice] [MainThread] Kept the best 1813 probes. Writing to /dev/null
+    [...]
+
+## How many pairwise pings will I end up doing? How many were successful?
+
+How many you will do, assuming you ended up with 1813 cities/probes is:
+1813*1812/2 == 1,642,578
+
+How many were successful can be determined after running `05-generate-csv.py`:
+
+    echo $(($(<data/all-pairs.csv tail -n 1 | cut -d, -f 1)+1))
