@@ -119,6 +119,13 @@ There are lots of sleeps in the main loop.
   allowance in 1 hour. Slow down our hammering of API usage. Spread out our
   spending so we're less bursty and can stay closer to the limit for longer.
 
+## Cost
+
+The cost depends on the number of cities in which you find working probes. This
+process in 2018 found 1,813 cities, which cost `(1813*1812/2)*6` or **9.85
+million credits**. (2 credits per ICMP ping packet, 3 packets, thus multiplied
+by 6).
+
 # `04-fetch-all-pairs-results.py`
 
 Run this after `03-al-pairs-ping.py`. Periodically while 03 is running is fine
