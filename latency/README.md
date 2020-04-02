@@ -129,3 +129,8 @@ large, thus the script only rewrites the file periodically (controlled with
 `--write-results-every`, default to every 5 fetched results). Yes it would be
 better if this wrote one result per line and simply appended to this file, but
 that's not how I wrote it 2 years ago, sorry.
+
+# `05-generate-csv.py`
+
+This is the final script. Generates the CSV to be used for generating the
+network topology.
