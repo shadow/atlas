@@ -1,3 +1,5 @@
 data/GeoLite2-City.mmdb
 data/GeoLite2-City_*/
 cache/
+data/selected-probes.json
+data/all-pairs.csv
