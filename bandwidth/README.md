@@ -106,7 +106,10 @@ For each of the page that actually does have usable data:
 - Run `03.1-parse-simple-table.py` (or the complex script, as applicable) with
   the table html file as input. Pipe the output into a a file in
   `www.speedtest.net/reports-parsed` such as
-  `www.speedtest.net/reports-parsed/brazil.txt`.
+  `www.speedtest.net/reports-parsed/brazil.txt`. You need to name them
+  `$COUNTRY.txt` where `$COUNTRY` is exactly as the country name appears in the
+  left column of `data/country-codes.txt`. If you don't you'll get warnings
+  later.
 
 
     # for a "simple" table
@@ -116,3 +119,27 @@ For each of the page that actually does have usable data:
     # for a "complex" table
     <www.speedtest.net/reports/brazil.html ./03.1-parse-complex-table.py |\
     tee www.speedtest.net/reports-parsed/brazil.txt
+
+Once you've done this for all the countries with city data, it's time to start
+running `03-parse-data.py` repeatedly until it completes without warnings or
+errors.
+
+Verify there's still no issues parsing country data:
+
+    $ ./03-parse-data.py
+    [2020-04-08 09:51:04.072371] [debug] Creating PastlyLogger instance
+    [2020-04-08 09:51:04.073512] [notice] Loading country data from www.speedtest.net/global-index
+    ... verify only debug "Found data" lines here ...
+    [2020-04-08 09:51:04.335361] [notice] Loading city data from www.speedtest.net/reports-parsed
+    ... additional debug/warn lines here are okay ...
+    [2020-04-08 09:56:05.442555] [debug] Deleting PastlyLogger instance
+
+Okay so country data is still fine. Time to address warnings regarding city
+data.
+
+    [2020-04-08 09:56:05.437448] [warn] hong-kong not found in global index country code data so skipping www.speedtest.net/reports-parsed/hong-kong.txt
+
+Oops I used `hong-kong.txt` instead of (*checks data/country-codes.txt*)
+`hong-kong-(sar).txt`. Silly me. What a obvious mistake. I rename the former to
+the latter to fix this warning, and address all other warnings of this nature
+in the same way.

@@ -5,6 +5,7 @@ import csv
 import re
 import os
 import json
+import glob
 log = PastlyLogger(debug='/dev/stdout', overwrite=['debug'], log_threads=False)
 
 
@@ -80,10 +81,10 @@ def _trim_global_index_data(args, data):
 def load_global_index(args, gicc):
     directory = os.path.join(args.dir, 'global-index')
     if not os.path.exists(directory) and not os.path.isdir(directory):
-        log.warn('Could not find global-index data')
+        log.warn('Could not find country data')
         return {}
     data = {}
-    log.notice('Loading global-index data from', directory)
+    log.notice('Loading country data from', directory)
     reg = r'^ *var data = ({.+});$'
     fnames = find_files(directory)
     for fname in fnames:
@@ -107,24 +108,166 @@ def load_global_index(args, gicc):
     return data
 
 
-def load_city_reports(args):
-    assert os.path.exists(args.city_csv) and os.path.isfile(args.city_csv)
-    log.notice('Loading city data from', args.city_csv)
-    out_data = {}
-    required_columns = ['Country', 'City', 'Upload', 'Download', 'geoname_id']
-    with open(args.city_csv, 'rt') as fd:
-        in_data = csv.DictReader(fd)
-        for row in in_data:
-            for col in required_columns:
-                assert col in row
-            if not row['geoname_id']:
+def sets_of_n(lst, n):
+    out = []
+    work = []
+    for item in lst:
+        work.append(item)
+        if len(work) == n:
+            out.append(work)
+            work = []
+    assert not len(work)
+    return out
+
+
+def rows_with_city(csv_dict, city_name):
+    rows = []
+    city_name = city_name.lower()
+    for row in csv_dict:
+        if row['city_name'].lower() == city_name:
+            rows.append(row)
+    return rows
+
+
+def get_best_match(rows, city_name, country_name):
+    assert len(rows)
+    if len(rows) == 1:
+        return rows[0]
+    # if the city name has a comma in it, try treating the part after the comma
+    # as a "subdivision" (state, in the US) name. There's two levels of
+    # subdivisions in maxmind's db. This part tries subdiv level 1
+    if ',' in city_name:
+        log.debug(
+            f'Trying to find best match for {city_name} from {len(rows)} '
+            f'rows with subdiv level 1')
+        city, subdiv = city_name.split(',', maxsplit=1)
+        city = city.lower()
+        subdiv = subdiv.strip().lower().replace('é', 'e')
+        filtered = []
+        for row in rows:
+            if row['city_name'].lower() != city:
                 continue
-            log.debug('Found data for', row['City'])
+            if row['subdivision_1_name'].lower() == subdiv:
+                filtered.append(row)
+        if len(filtered) == 1:
+            return filtered[0]
+        if len(filtered) > 1:
+            log.info(
+                f'Still {len(filtered)} matches for "{city}" city in subdiv '
+                f'"{subdiv}" in country {country_name}. Arbitrarily picking '
+                'first of the following')
+            for row in filtered:
+                log.debug(dict(row))
+            return filtered[0]
+    # if no comma in city_name, try filtering on country name matches
+    if ',' not in city_name:
+        country = country_name.lower().replace('-', ' ')
+        log.debug(
+            f'There exists {len(rows)} matches for "{city_name}" city. '
+            f'Trying to filter down with "{country}" country')
+        filtered = []
+        for row in rows:
+            if row['country_name'].lower() == country:
+                filtered.append(row)
+        if len(filtered) == 1:
+            return filtered[0]
+        if len(filtered) > 1:
+            log.info(
+                f'More than one match for "{city_name}" city with "{country}" '
+                f'country name. Arbitrarily picking the first item of the '
+                f'following {len(filtered)}')
+            for row in filtered:
+                log.debug(dict(row))
+            return filtered[0]
+    return None
+
+
+def try_alt_name(mmdb_csv, city):
+    alt_name_map = {
+        'Buraydah': 'Buraidah',
+        'Yekaterinburg': 'Ekaterinburg',
+        'Saint Petersburg': 'St Petersburg',
+        'Nizhny Novgorod': 'Nizhniy Novgorod',
+        'Al Khobar': 'Khobar',
+        'Al Hofuf': 'Al Hufuf',
+        'Taif': 'Ta\'if',
+        'Shubra al Khaymah': 'Shubra',
+        'Al Mahalla El Kubra': 'Al Mahallah al Kubra',
+        'Saint Petersburg, Florida': 'St Petersburg',
+        'Québec City, Québec': 'Québec',
+        'Sha Tin District': 'Shatin',
+        'Wan Chai District': 'Wanchai',
+        # there are three "cities" in this district, this is one of them
+        'Yau Tsim Mong District': 'Yau Ma Tei',
+        # there are ~eight "cities" in this district, this is one of them
+        'Central and Western District': 'Tai Hang',
+        'Kowloon City District': 'Kowloon',
+        # there are ~ten "cities" in this district, this is one of them
+        'Southern District': 'Deep Water Bay',
+        # there are ~nine "cities" in this district, this is one of them
+        'Eastern District': 'Sai Wan Ho',
+        'Las Palmas': 'Las Palmas de Gran Canaria',
+    }
+    if city in alt_name_map:
+        return rows_with_city(mmdb_csv, alt_name_map[city])
+    return []
+
+
+
+def load_city_reports(args, gicc, mmdb_csv):
+    directory = os.path.join(args.dir, 'reports-parsed')
+    if not os.path.exists(directory) and not os.path.isdir(directory):
+        log.warn('Could not find reports-parsed directory with city data')
+        return {}
+    assert os.path.exists(directory) and os.path.isdir(directory)
+    log.notice('Loading city data from', directory)
+    out_data = {}
+    for fname in glob.iglob(f'{directory}/**', recursive=True):
+        if not os.path.isfile(fname):
+            continue
+        country = os.path.splitext(os.path.basename(fname))[0]
+        if country not in gicc:
+            log.warn(country, 'not found in global index country code data '
+                     'so skipping', fname)
+            continue
+        lines = iter([line.strip() for line in open(fname, 'rt')])
+        for city, down, up in sets_of_n(lines, 3):
+            rows = rows_with_city(mmdb_csv, city)
+            # special case attempt for city names like 'Wichita, Kansas'
+            if not len(rows) and ',' in city:
+                city_ = city.split(',')[0]
+                rows = rows_with_city(mmdb_csv, city_)
+            # special case attempt for city names like 'Sham Shui Po District'
+            if not len(rows) and city.endswith(' District'):
+                city_ = city[:-1*len(' District')]
+                rows = rows_with_city(mmdb_csv, city_)
+            # special case for different spellings
+            if not len(rows):
+                rows = try_alt_name(mmdb_csv, city)
+            # give up if after all that we still don't have any idea
+            if not len(rows):
+                log.warn(f'Did not find city "{city}" (country {country}) '
+                         f'in GeoLite2 CSV DB. Ignoring it.')
+                continue
+            # we have 1 or more rows. if we have more than one, pick the best
+            if len(rows) > 1:
+                best_match = get_best_match(rows, city, country)
+                if best_match is None:
+                    log.warn(
+                        f'{len(rows)} matches for "{city}" (country '
+                        f'{country}) and couldn\'t pick best, so ignoring.')
+                    for r in rows:
+                        log(dict(r))
+                    continue
+                rows = [best_match]
+            assert len(rows) == 1
+            row = rows[0]
             out_data[row['geoname_id']] = {
-                'country_name': row['Country'],
-                'city_name': row['City'],
-                'up_mbits': float(row['Upload']),
-                'down_mbits': float(row['Download']),
+                'country_name': country,
+                'country_id': gicc[country],
+                'city_name': row['city_name'],
+                'up_mbits': up,
+                'down_mbits': down,
                 'city_id': int(row['geoname_id'])
             }
     return out_data
@@ -141,11 +284,15 @@ def load_global_index_country_codes(args):
     return d
 
 
+def load_mmdb_csv(args):
+    return [row for row in csv.DictReader(open(args.mmdb_csv, 'rt'))]
+
+
 def main(args):
-    # mmdb = maxminddb.open_database(args.mmdb)
     gicc = load_global_index_country_codes(args)
+    mmdb_csv = load_mmdb_csv(args)
     global_index = load_global_index(args, gicc)
-    city_reports = load_city_reports(args)
+    city_reports = load_city_reports(args, gicc, mmdb_csv)
     with open(args.output, 'wt') as fd:
         json.dump({'countries': global_index, 'cities': city_reports},
                   fd, indent=2)
@@ -160,16 +307,11 @@ if __name__ == '__main__':
                         default='data/country-codes.txt',
                         help='Path to file storing country names and codes '
                         'as used in the speedtest.net/global-index webpages')
-    parser.add_argument('--city-csv', type=str, default='data/maxminddb-cities.csv',
-                        help='Path to semi-hand-montified Maxmind GeoLite2 '
-                        'cities CSV file')
+    parser.add_argument('--mmdb-csv', type=str,
+                        default='data/GeoLite2-City-Locations-en.csv',
+                        help='Path to the GeoLite2 City database in CSV '
+                        'format that you downloaded.')
     args = parser.parse_args()
-    # args.dir = expand_path(args.dir)
-    # args.gicc = expand_path(args.gicc)
-    if not os.path.exists(args.dir) and not os.path.isdir(args.dir):
-        fail_hard(args.dir, 'doesn\'t exist')
     if not os.path.exists(args.gicc) and not os.path.isfile(args.gicc):
         fail_hard(args.gicc, 'doesn\'t exist')
-    if not os.path.exists(args.city_csv) and not os.path.isfile(args.city_csv):
-        fail_hard(args.city_csv, 'doesn\'t exist')
     exit(main(args))
