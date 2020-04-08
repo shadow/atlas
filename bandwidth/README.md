@@ -143,3 +143,120 @@ Oops I used `hong-kong.txt` instead of (*checks data/country-codes.txt*)
 `hong-kong-(sar).txt`. Silly me. What a obvious mistake. I rename the former to
 the latter to fix this warning, and address all other warnings of this nature
 in the same way.
+
+In 2020 I put in a ton of effort to programtically handle all of the existing
+"edge cases." If you can run `./03-parse-data.py` at this point with no warning
+lines being output, then you're done.
+
+    $ ./03-parse-data.py | grep warn | wc -l
+    0
+    $ # Thank god I'm done and there's no more work to do. Thanks 2020 Matt!
+
+If, however, you do get errors, I now need to divide your attention between the
+source of the script and the following paragraphs. You may need to edit the
+script and as I've documented how it works *there*. Start with `def
+load_city_reports(...)`.
+
+There are two warnings I would expect you to get, and I will now walk you
+through how I solved them. The examples are cases that I already have solved
+(worked for me in 2020!), thus you shouldn't see them exactly. I hope by
+describing my problem solving process for some of these you will be able to do
+the same or similar things for any new cities that come up.
+
+### Warning 1: Did not find city "foo" (country "bar") in GeoLite2 CSV DB. Ignoring it.
+
+None of the fiddling the script did could unearth even a single row in
+MaxMind's DB that matches this city.
+
+**Example**: Taif/saudi-arabia
+
+    $ grep Taif data/GeoLite2-City-Locations-en.csv
+    # outputs nothing
+
+Hmmmm. To DuckDuckGo! <https://duckduckgo.com/?q=taif>
+Ah it's spelled "Ta'if". Let's try that.
+
+    $ grep Ta\'if data/GeoLite2-City-Locations-en.csv
+    107968,en,AS,Asia,SA,"Saudi Arabia",02,"Makkah Province",,,Ta'if,,Asia/Riyadh,0
+
+Perfect, just one result. Let's add that to the map in `try_alt_name(...)`.
+
+**Example**: Al Hofuf/saudi-arabia
+
+Same thing as before: no results with grep for "Hofuf". Off to DuckDuckGo.
+<https://duckduckgo.com/?q=Al+Hofuf>
+
+Hmmm ... and to Wikipedia from there. <https://en.wikipedia.org/wiki/Hofuf>
+
+Lots of alternative spellings in the first paragraph here. Let's pick one.
+
+    $ grep Hufuf data/GeoLite2-City-Locations-en.csv
+    109571,en,AS,Asia,SA,"Saudi Arabia",04,"Eastern Province",,,"Al Hufuf",,Asia/Riyadh,0
+
+Perfect, just one result (and the others don't produce any relevant results).
+Add it to the map in `try_alt_name(...)`.
+
+**Example**: Sha Tin District/hong-kong
+
+Let's do a grep.
+
+    $ grep 'Sha Tin' data/GeoLite2-City-Locations-en.csv
+    1818628,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Tai Wai",,Asia/Hong_Kong,0
+    1818781,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Siu Lek Yuen",,Asia/Hong_Kong,0
+    1818916,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Sha Tin Wai",,Asia/Hong_Kong,0
+    1818920,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,Shatin,,Asia/Hong_Kong,0
+    1819135,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Pak Tin",,Asia/Hong_Kong,0
+    1819400,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Ma On Shan Tsuen",,Asia/Hong_Kong,0
+    1819417,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Ma Liu Shui",,Asia/Hong_Kong,0
+    1819855,en,AS,Asia,HK,"Hong Kong",NST,"Sha Tin",,,"Fo Tan",,Asia/Hong_Kong,0
+
+By the way, the column with `"Sha Tin"` for every row is *not* the city name.
+The city name is the forth-from-last column (`"Tai Wai"` for the first row).
+
+From here, and with most of the Hong Kong districts, you have to make a choice
+for which city to map to. For Sha Tin District specifically, I chose Shatin,
+because -- since I know nothing about HK -- it seems like it must be the
+biggest city in Sha Tin District.
+
+### Warning 2: 2 matches for "foo" (country bar) and couldn't pick best, so ignoring.
+
+The script narrowed the list of possible rows and handled them to
+`get_best_match(...)`, but it failed to return any match at all.
+
+It is tempting to patch `get_best_match` to always return one of the rows given
+if it can't figure out which is the best, but I saw rows make it in to this
+function with cities (with similar names) in two different countries. Thus I
+don't think that would be smart. I did, however, decide to pick an arbitrary
+row if there were still 2+ rows after matching on the correct country.
+
+Anyway, let's look at examples.
+
+**Example**: Brisbane, Queensland/australia
+
+What has happened here is `load_city_reports(...)` tried the full "Brisbane,
+Queensland" as the city name, which didn't work, then it tried "Brisbane"
+as the city and got more than one Brisbane-named city. Indeed, there's a
+Brisbane in California that it got:
+
+    # leading comma in grep to avoid the flood of cities that are in the
+    # Australia/Brisbane timezone
+    $ grep ',Brisbane' data/GeoLite2-City-Locations-en.csv
+    2174003,en,OC,Oceania,AU,Australia,QLD,Queensland,,,Brisbane,,Australia/Brisbane,0
+    5330810,en,NA,"North America",US,"United States",CA,California,,,Brisbane,807,America/Los_Angeles,0
+
+So it passes these two rows to `get_best_match(...)`, which notices the comma
+in "Brisbane, Queensland" (the `city_name` it receives). It treats Queensland
+as a subdivision between Australia and Brisbane, and with that is able to
+narrow it down to just the Australian row. Tada!
+
+**Example**: Ghent/belgium
+
+This is simple enough. The script found three Ghents:
+
+    $ grep Ghent data/GeoLite2-City-Locations-en.csv
+    36402:2797656,en,EU,Europe,BE,Belgium,VLG,Flanders,VOV,"East Flanders Province",Ghent,,Europe/Brussels,1
+    90120:4292709,en,NA,"North America",US,"United States",KY,Kentucky,,,Ghent,529,America/New_York,0
+    101086:5118481,en,NA,"North America",US,"United States",NY,"New York",,,Ghent,532,America/New_York,0
+
+`get_best_match(...)` filtered on the country name and found just one Ghent in
+Belgium. Tada!

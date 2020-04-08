@@ -130,6 +130,14 @@ def rows_with_city(csv_dict, city_name):
 
 
 def get_best_match(rows, city_name, country_name):
+    ''' Other functions whittled down the entire MaxMind CSV database into a
+    much smaller set of rows. Now it's time for this function to choose which
+    of them is the best match for the given city and country.
+
+    This function will either return one row or the value None. If the caller
+    wants to work with a list of rows, it's up to them to wrap a non-None
+    return value from us in a list.
+    '''
     assert len(rows)
     if len(rows) == 1:
         return rows[0]
@@ -142,6 +150,7 @@ def get_best_match(rows, city_name, country_name):
             f'rows with subdiv level 1')
         city, subdiv = city_name.split(',', maxsplit=1)
         city = city.lower()
+        # replace fancy e with simple e because Quebec
         subdiv = subdiv.strip().lower().replace('é', 'e')
         filtered = []
         for row in rows:
@@ -161,6 +170,7 @@ def get_best_match(rows, city_name, country_name):
             return filtered[0]
     # if no comma in city_name, try filtering on country name matches
     if ',' not in city_name:
+        # replace - with ' ' because saudi-arabia
         country = country_name.lower().replace('-', ' ')
         log.debug(
             f'There exists {len(rows)} matches for "{city_name}" city. '
@@ -183,6 +193,11 @@ def get_best_match(rows, city_name, country_name):
 
 
 def try_alt_name(mmdb_csv, city):
+    ''' speedtest.net and MaxMind spell some cities differently. This handles
+    those cases. Not that it only calls rows_with_city(...) with the new city
+    name and doesn't try other things. If it returns multiple rows, it's up to
+    the caller to figure out which is best.
+    '''
     alt_name_map = {
         'Buraydah': 'Buraidah',
         'Yekaterinburg': 'Ekaterinburg',
@@ -215,13 +230,33 @@ def try_alt_name(mmdb_csv, city):
 
 
 def load_city_reports(args, gicc, mmdb_csv):
+    ''' This is the primary function responsible for parsing the city data from
+    speedtest.net into the final usable form. As input we take:
+
+        - args, the command line args. Used to get the directory the
+        partially-parsed speedtest.net city data is in.
+        - gicc, the "global index country codes". Just a simple country name ->
+        code dictionary parsed from data/country-codes.txt by default.
+        - mmdb_csv, the MaxMind GeoLite2 city database in CSV format.
+
+    This function outputs a dictionary. Keys are the geoname_id city codes.
+    Values are a dictionary of the following:
+        - the name of the country in which the city is located
+        - the 2-letter country code for that country
+        - the name of the city
+        - the bandwidth up in that city, in Mbit/s
+        - the bandwidth down in that city, in Mbit/s
+        - the geoname_id of the city
+    '''
+    out_data = {}
     directory = os.path.join(args.dir, 'reports-parsed')
     if not os.path.exists(directory) and not os.path.isdir(directory):
         log.warn('Could not find reports-parsed directory with city data')
         return {}
     assert os.path.exists(directory) and os.path.isdir(directory)
     log.notice('Loading city data from', directory)
-    out_data = {}
+    # recursively look for files in the fornmat COUNTRY_NAME.txt where
+    # COUNTRY_NAME is a country name, spelled exactly like it is in the gicc.
     for fname in glob.iglob(f'{directory}/**', recursive=True):
         if not os.path.isfile(fname):
             continue
@@ -230,26 +265,47 @@ def load_city_reports(args, gicc, mmdb_csv):
             log.warn(country, 'not found in global index country code data '
                      'so skipping', fname)
             continue
+        # We have city data from a known country. It's parsin' time. The data
+        # comes three lines at a time, so we look at the input lines in groups
+        # of 3. First line city name, second is down bandwidth, third is up
+        # bandwidth (both in Mbit/s)
         lines = iter([line.strip() for line in open(fname, 'rt')])
         for city, down, up in sets_of_n(lines, 3):
+            # Look for a SINGLE EXACT match for the given city name in
+            # mmdb_csv. Spolier alert: this won't find anything most of the
+            # time.
             rows = rows_with_city(mmdb_csv, city)
-            # special case attempt for city names like 'Wichita, Kansas'
+            # If there are still no rows ...
+            # Many city names as spelled by speedtest.net are actually "City,
+            # State" (or similar for places that don't call them states). So
+            # let's try the same thing again, but with just the city part.
             if not len(rows) and ',' in city:
                 city_ = city.split(',')[0]
                 rows = rows_with_city(mmdb_csv, city_)
-            # special case attempt for city names like 'Sham Shui Po District'
+            # If there are still no rows ...
+            # Hong Kong is broken up into districts, and some (but not even
+            # close to all) of those districts can be found as cities by simply
+            # removing the word "District". So let's try the same thing again,
+            # but without the " District" suffix.
             if not len(rows) and city.endswith(' District'):
                 city_ = city[:-1*len(' District')]
                 rows = rows_with_city(mmdb_csv, city_)
-            # special case for different spellings
+            # If there are still no rows ...
+            # Jump into a separate function that handles more complex cases of
+            # "speedtest.net spells it this way, but MaxMind spells it this
+            # other way."
             if not len(rows):
                 rows = try_alt_name(mmdb_csv, city)
-            # give up if after all that we still don't have any idea
+            # If there are still now rows ... fucking give up, man.
+            #
+            # If you get this warning, the easiest thing to do may be to add
+            # another mapping in try_alt_name(...).
             if not len(rows):
                 log.warn(f'Did not find city "{city}" (country {country}) '
                          f'in GeoLite2 CSV DB. Ignoring it.')
                 continue
-            # we have 1 or more rows. if we have more than one, pick the best
+            # More than 1 row is an improvement. But now we need to decide on
+            # which one. Jump into a separate function that picks the best one.
             if len(rows) > 1:
                 best_match = get_best_match(rows, city, country)
                 if best_match is None:
@@ -257,9 +313,11 @@ def load_city_reports(args, gicc, mmdb_csv):
                         f'{len(rows)} matches for "{city}" (country '
                         f'{country}) and couldn\'t pick best, so ignoring.')
                     for r in rows:
-                        log(dict(r))
+                        log.debug(dict(r))
                     continue
                 rows = [best_match]
+            # Yay there's just one row left at this point! Store it and move on
+            # to the next.
             assert len(rows) == 1
             row = rows[0]
             out_data[row['geoname_id']] = {
