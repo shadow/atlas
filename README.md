@@ -3,6 +3,8 @@ Create a virtualenv and install all requirements
     virtualenv -p /usr/bin/python3 atlasvenv
     source atlasvenv/bin/activate
     pip install -r latency/requirements.txt
+    pip install -r bandwidth/requirements.txt
+    pip install -r glue/requirements.txt
 
 # Latency
 
