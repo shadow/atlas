@@ -1,3 +1,7 @@
+# I will be force pushing over this repo to rewrite its history without data
+
+^ Just a fair warning.
+
 Create a virtualenv and install all requirements
 
     virtualenv -p /usr/bin/python3 atlasvenv
