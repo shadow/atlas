@@ -4,13 +4,9 @@ import csv
 import json
 import networkx
 import logging
-
+import os
 from statistics import mean
-
-PROBES="../latency/data/all-pairs.csv"
-SPEEDS="../bandwidth/speed-data.json"
-
-OUTGRAPH="atlas.graphml.xml"
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 MAX_LATENCY=300.0 # milliseconds
 MAX_LOSS=0.015 # 1.5 percent
@@ -18,10 +14,10 @@ MAX_LOSS=0.015 # 1.5 percent
 FORMAT = "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s() %(levelname)s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
-def main():
-    logging.info("loading speedtest data from {}...".format(SPEEDS))
+def main(args):
+    logging.info("loading speedtest data from {}...".format(args.input_bandwidth))
     # load speedtest data
-    with open(SPEEDS, 'r') as inf:
+    with open(args.input_bandwidth, 'r') as inf:
         speed = json.load(inf)
 
     speed['global_up_mbit'] = mean([speed['countries'][code]['up_mbits'] for code in speed['countries']])
@@ -32,9 +28,9 @@ def main():
     latencies = {'ip2ip':{}, 'city2city':{}, 'country2country': {}, 'global': {}}
     G = networkx.Graph(preferdirectpaths="True")
 
-    logging.info("adding nodes using probes from {}...".format(PROBES))
+    logging.info("adding nodes using probes from {}...".format(args.input_latency))
     # add nodes first
-    with open(PROBES, 'r') as inf:
+    with open(args.input_latency, 'r') as inf:
         reader = csv.DictReader(inf, delimiter=',')
 
         for row in reader:
@@ -68,8 +64,8 @@ def main():
             logging.info("finished {}/{} edges".format(num_completed_edges, total_edges))
             next_step += 0.1
 
-    logging.info("writing graph to {}...".format(OUTGRAPH))
-    networkx.write_graphml(G, OUTGRAPH)
+    logging.info("writing graph to {}...".format(args.output))
+    networkx.write_graphml(G, args.output)
 
 def add_edge(G, latencies, s, d):
     if s in latencies['ip2ip'] and d in latencies['ip2ip'][s]:
@@ -128,4 +124,28 @@ def add_node(G, speed, ip, city, country):
 def mbit_to_kib(bw):
     return int(float(bw) * 122.07)
 
-if __name__ == '__main__': main()
+
+def fail_hard(*a, **kw):
+    logging.error(*a, **kw)
+    exit(1)
+
+if __name__ == '__main__':
+    p = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    p.add_argument(
+        '--input-latency', type=str, default='../latency/data/all-pairs.csv',
+        help='Final output from scripts in ../latency directory.')
+    p.add_argument(
+        '--input-bandwidth', type=str, default='../bandwidth/speed-data.json',
+        help='Final output from scripts in ../bandwidth directory.')
+    p.add_argument(
+        '-o', '--output', type=str, default='/dev/stdout',
+        help='Where to write final output XML network topology. Consider '
+        'leaving this as stdout and '
+        'piping through xz for compression. Recommended filename: '
+        'atlas.graphml.xml(.xz)')
+    args = p.parse_args()
+    if not os.path.isfile(args.input_latency):
+        fail_hard('%s must exist', args.input_latency)
+    if not os.path.isfile(args.input_bandwidth):
+        fail_hard('%s must exist', args.input_bandwidth)
+    exit(main(args))
