@@ -144,8 +144,4 @@ if __name__ == '__main__':
         'piping through xz for compression. Recommended filename: '
         'atlas.graphml.xml(.xz)')
     args = p.parse_args()
-    if not os.path.isfile(args.input_latency):
-        fail_hard('%s must exist', args.input_latency)
-    if not os.path.isfile(args.input_bandwidth):
-        fail_hard('%s must exist', args.input_bandwidth)
     exit(main(args))
