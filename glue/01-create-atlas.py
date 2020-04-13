@@ -50,12 +50,14 @@ def main(args):
             dst_country = row['dst_country']
             src_city = int(row['src_city'])  # MaxMind int code
             dst_city = int(row['dst_city'])  # MaxMind int code
+            src_city_name = row['src_city_name']
+            dst_city_name = row['dst_city_name']
             latency = float(row['latency'])
 
             if src_ip not in G:
-                add_node(G, speed, src_ip, src_city, src_country)
+                add_node(G, speed, src_ip, src_city, src_country, src_city_name)
             if dst_ip not in G:
-                add_node(G, speed, dst_ip, dst_city, dst_country)
+                add_node(G, speed, dst_ip, dst_city, dst_country, dst_city_name)
 
             track_latency(latencies, 'ip2ip', src_ip, dst_ip, latency)
             if src_city is not None and dst_city is not None:
@@ -136,7 +138,7 @@ def track_latency(latencies, latency_key, src_key, dst_key, latency):
             latencies[latency_key].setdefault(src_key, {}).setdefault(dst_key, []).append(latency)
 
 
-def add_node(G, speed, ip, city, country):
+def add_node(G, speed, ip, city, country, city_name):
     # prefer city, then country, then fall back to global average
     if city is not None and city in speed['cities']:
         bwup = mbit_to_kib(speed['cities'][city]['up_mbits'])
@@ -149,7 +151,7 @@ def add_node(G, speed, ip, city, country):
         bwdown = mbit_to_kib(speed['global_down_mbit'])
 
     if city is not None:
-        G.add_node(ip, bandwidthdown=int(bwdown), bandwidthup=int(bwup), ip=str(ip), citycode=str(city), countrycode=str(country))
+        G.add_node(ip, bandwidthdown=int(bwdown), bandwidthup=int(bwup), ip=str(ip), citycode=str(city), countrycode=str(country), cityname=str(city_name))
     else:
         G.add_node(ip, bandwidthdown=int(bwdown), bandwidthup=int(bwup), ip=str(ip), countrycode=str(country))
         # G.node[ip]['citycode'] = city
