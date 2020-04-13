@@ -9,7 +9,6 @@ from statistics import mean
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 
-MAX_LATENCY = 300.0  # milliseconds
 MAX_LOSS = 0.015  # 1.5 percent
 FORMAT = "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s() %(levelname)s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
@@ -78,7 +77,7 @@ def main(args):
     next_step = 0.1
     for s in G:
         for d in G:
-            add_edge(G, latencies, s, d)
+            add_edge(G, latencies, s, d, args.max_latency)
             num_completed_edges += 1
         if num_completed_edges > total_edges * next_step:
             logging.info("finished {}/{} edges".format(
@@ -89,7 +88,7 @@ def main(args):
     networkx.write_graphml(G, args.output)
 
 
-def add_edge(G, latencies, s, d):
+def add_edge(G, latencies, s, d, max_latency):
     if s in latencies['ip2ip'] and d in latencies['ip2ip'][s]:
         latency_list = latencies['ip2ip'][s][d]
     elif d in latencies['ip2ip'] and s in latencies['ip2ip'][d]:
@@ -107,9 +106,9 @@ def add_edge(G, latencies, s, d):
 
     latency = mean(latency_list)
     assert latency > 0
-    if latency > MAX_LATENCY:
-        latency = MAX_LATENCY
-    packetloss = latency/MAX_LATENCY*MAX_LOSS
+    if latency > max_latency:
+        latency = max_latency
+    packetloss = latency/max_latency*MAX_LOSS
 
     G.add_edge(s, d, latency=float(latency), packetloss=float(packetloss))
 
@@ -170,5 +169,9 @@ if __name__ == '__main__':
         'leaving this as stdout and '
         'piping through xz for compression. Recommended filename: '
         'atlas.graphml.xml(.xz)')
+    p.add_argument(
+        '--max-latency', type=float, default=300,
+        help='If we would assign a latency to a link larger than this based '
+        'on the input data, don\'t and assign this instead. In milliseconds.')
     args = p.parse_args()
     exit(main(args))
