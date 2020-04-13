@@ -76,7 +76,17 @@ def main(args):
     next_step = 0.1
     for s in G:
         for d in G:
-            add_edge(G, latencies, s, d, args.max_latency, args.max_packetloss)
+            max_packetloss = 0
+            # explicitly checking for all possible values for
+            # args.packetloss_model
+            if args.packetloss_model == 'zero':
+                max_packetloss = 0
+            elif args.packetloss_model == 'linear-latency':
+                max_packetloss = args.max_packetloss
+            else:
+                fail_hard('Unknown packet loss model %s' %
+                          (args.packetloss_model,))
+            add_edge(G, latencies, s, d, args.max_latency, max_packetloss)
             num_completed_edges += 1
         if num_completed_edges > total_edges * next_step:
             logging.info("finished {}/{} edges".format(
@@ -175,7 +185,13 @@ if __name__ == '__main__':
     p.add_argument(
         '--max-packetloss', type=float, default=0.015,
         help='When using the linear latency packet loss model, this is the '
-        'maximum packetloss, which will be assigned to links with the maximum '
-        'latency. Fraction of 1, thus 0.015 == 1.5%.')
+        'maximum packet loss, which will be assigned to links with the maximum '
+        'latency. Fraction of 1, thus 0.015 == 1.5%%.')
+    p.add_argument(
+        '--packetloss-model', choices=['zero', 'linear-latency'],
+        default='zero',
+        help='Which packet loss model to use. Zero: all links have zero '
+        'packet loss. Linear-latency: the packet loss assigned to a link '
+        'increases linearly as the latency of the link increases.')
     args = p.parse_args()
     exit(main(args))
