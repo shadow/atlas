@@ -1,34 +1,46 @@
 #!/usr/bin/env python3
+# pylama:ignore=E501
 
 import csv
 import json
 import networkx
 import logging
-import os
 from statistics import mean
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
-MAX_LATENCY=300.0 # milliseconds
-MAX_LOSS=0.015 # 1.5 percent
 
+MAX_LATENCY = 300.0  # milliseconds
+MAX_LOSS = 0.015  # 1.5 percent
 FORMAT = "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s() %(levelname)s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
+
 def main(args):
-    logging.info("loading speedtest data from {}...".format(args.input_bandwidth))
+    logging.info(
+        "loading speedtest data from {}...".format(args.input_bandwidth))
     # load speedtest data
     with open(args.input_bandwidth, 'r') as inf:
         speed = json.load(inf)
 
-    speed['global_up_mbit'] = mean([speed['countries'][code]['up_mbits'] for code in speed['countries']])
-    speed['global_down_mbit'] = mean([speed['countries'][code]['down_mbits'] for code in speed['countries']])
-    logging.info("found global averages: {} mbit/s up, {} mbit/s down".format(speed['global_up_mbit'], speed['global_down_mbit']))
+    speed['global_up_mbit'] = mean(
+        [speed['countries'][code]['up_mbits'] for code in speed['countries']])
+    speed['global_down_mbit'] = mean(
+        [speed['countries'][code]['down_mbits']
+         for code in speed['countries']])
+    logging.info("found global averages: {} mbit/s up, {} mbit/s down".format(
+        speed['global_up_mbit'], speed['global_down_mbit']))
 
     # since we have multiple latencies for each edge we need to callapse them
-    latencies = {'ip2ip':{}, 'city2city':{}, 'country2country': {}, 'global': {}}
+    latencies = {
+        'ip2ip': {},
+        'city2city': {},
+        'country2country': {},
+        'global': {}
+    }
     G = networkx.Graph(preferdirectpaths="True")
 
-    logging.info("adding nodes using probes from {}...".format(args.input_latency))
+    logging.info(
+        "adding nodes using probes from {}...".format(args.input_latency))
     # add nodes first
     with open(args.input_latency, 'r') as inf:
         reader = csv.DictReader(inf, delimiter=',')
@@ -42,14 +54,22 @@ def main(args):
             dst_city = int(row['dst_city'])  # MaxMind int code
             latency = float(row['latency'])
 
-            if src_ip not in G: add_node(G, speed, src_ip, src_city, src_country)
-            if dst_ip not in G: add_node(G, speed, dst_ip, dst_city, dst_country)
+            if src_ip not in G:
+                add_node(G, speed, src_ip, src_city, src_country)
+            if dst_ip not in G:
+                add_node(G, speed, dst_ip, dst_city, dst_country)
 
             track_latency(latencies, 'ip2ip', src_ip, dst_ip, latency)
             if src_city is not None and dst_city is not None:
-                track_latency(latencies, 'city2city', src_city, dst_city, latency)
-            track_latency(latencies, 'country2country', src_country, dst_country, latency)
-            track_latency(latencies, 'global', 'global', 'global', latency)
+                track_latency(
+                    latencies, 'city2city', src_city, dst_city,
+                    latency)
+            track_latency(
+                latencies, 'country2country', src_country, dst_country,
+                latency)
+            track_latency(
+                latencies, 'global', 'global', 'global',
+                latency)
 
     total_edges = len(G) * len(G)
     logging.info("adding {} total edges...".format(total_edges))
@@ -61,11 +81,13 @@ def main(args):
             add_edge(G, latencies, s, d)
             num_completed_edges += 1
         if num_completed_edges > total_edges * next_step:
-            logging.info("finished {}/{} edges".format(num_completed_edges, total_edges))
+            logging.info("finished {}/{} edges".format(
+                num_completed_edges, total_edges))
             next_step += 0.1
 
     logging.info("writing graph to {}...".format(args.output))
     networkx.write_graphml(G, args.output)
+
 
 def add_edge(G, latencies, s, d):
     if s in latencies['ip2ip'] and d in latencies['ip2ip'][s]:
@@ -85,10 +107,12 @@ def add_edge(G, latencies, s, d):
 
     latency = mean(latency_list)
     assert latency > 0
-    if latency > MAX_LATENCY: latency = MAX_LATENCY
+    if latency > MAX_LATENCY:
+        latency = MAX_LATENCY
     packetloss = latency/MAX_LATENCY*MAX_LOSS
 
     G.add_edge(s, d, latency=float(latency), packetloss=float(packetloss))
+
 
 def track_latency(latencies, latency_key, src_key, dst_key, latency):
     if src_key in latencies[latency_key] and dst_key in latencies[latency_key][src_key]:
@@ -102,6 +126,7 @@ def track_latency(latencies, latency_key, src_key, dst_key, latency):
             latencies[latency_key][dst_key].setdefault(src_key, []).append(latency)
         else:
             latencies[latency_key].setdefault(src_key, {}).setdefault(dst_key, []).append(latency)
+
 
 def add_node(G, speed, ip, city, country):
     # prefer city, then country, then fall back to global average
@@ -119,7 +144,8 @@ def add_node(G, speed, ip, city, country):
         G.add_node(ip, bandwidthdown=int(bwdown), bandwidthup=int(bwup), ip=str(ip), citycode=str(city), countrycode=str(country))
     else:
         G.add_node(ip, bandwidthdown=int(bwdown), bandwidthup=int(bwup), ip=str(ip), countrycode=str(country))
-        #G.node[ip]['citycode'] = city
+        # G.node[ip]['citycode'] = city
+
 
 def mbit_to_kib(bw):
     return int(float(bw) * 122.07)
@@ -128,6 +154,7 @@ def mbit_to_kib(bw):
 def fail_hard(*a, **kw):
     logging.error(*a, **kw)
     exit(1)
+
 
 if __name__ == '__main__':
     p = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
