@@ -111,12 +111,13 @@ For each of the page that actually does have usable data:
   left column of `data/country-codes.txt`. If you don't you'll get warnings
   later.
 
+For a "simple" table:
 
-    # for a "simple" table
     <www.speedtest.net/reports/egypt.html ./03.1-parse-simple-table.py |\
     tee www.speedtest.net/reports-parsed/egypt.txt
     
-    # for a "complex" table
+For a "complex" table:
+
     <www.speedtest.net/reports/brazil.html ./03.1-parse-complex-table.py |\
     tee www.speedtest.net/reports-parsed/brazil.txt
 

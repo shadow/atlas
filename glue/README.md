@@ -35,7 +35,7 @@ You can find high latencies on the Internet.
 
 You can use `--max-latency` to cap really high latencies to something smaller.
 
-if you don't want to do that, you still need to set `--max-latency' to the
+if you don't want to do that, you still need to set `--max-latency` to the
 maximum latency in your input data so that it doesn't cap.
 
 # Packet loss parameters
