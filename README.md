@@ -37,5 +37,7 @@ moved or just deleted the reports for which these scripts are written.
 
 # Glue
 
+See `glue/README.md` for more info than what is here.
+
 This takes the previous two steps and glues them together for the final network
 topoloy.
